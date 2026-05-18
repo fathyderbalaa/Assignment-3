@@ -1,8 +1,16 @@
 import {createReadStream,createWriteStream} from "fs";
 import { createGzip } from "zlib";
 import http from "http";
-import { users } from './users.js';
+import fs from 'fs/promises'
+ 
+const readData=async()=>{
+    const data = await fs.readFile("./users.json",'utf-8')
+return JSON.parse(data)
+}
 
+const writeData=async(data)=>{
+    await fs.writeFile("./users.json",JSON.stringify(data))
+}
 // 1
 
 //const readStreeam = createReadStream("./source.txt",'utf-8')
@@ -27,7 +35,7 @@ import { users } from './users.js';
  
 // P2
 
-const server = http.createServer((req, res) => { 
+const server = http.createServer(async(req, res) => { 
   const url = req.url;
   const method = req.method;
   const splitedUrl = url.split("/");
@@ -38,6 +46,7 @@ if (splitedUrl[1] == "user") {
   
 
   if ( method == "GET" && id ) {
+        const users = await readData()
    const user = users.find((ele)=>(ele.id == id))
     if(!user){
       res.write("user not found")
@@ -48,10 +57,10 @@ if (splitedUrl[1] == "user") {
       res.end()
 
   }else if(method == "GET" ){
-const us = JSON.stringify(users)
-    res.write(us);
+    const users = await readData()
 
-  res.end();
+    res.write(JSON.stringify(users));
+    res.end();
   }else if( method == "DELETE"){
    deleteUser(req,res,id)
 
@@ -65,6 +74,7 @@ const us = JSON.stringify(users)
   updateUser(req,res,id)
 } else {
     res.write("invalid url");
+    res.end();
 
   }
 
@@ -76,9 +86,10 @@ const newUser=(req,res)=>{
   req.on('data',(chunk)=>{
     data += chunk
   })
-  req.on('end',()=>{
+  req.on('end',async()=>{
     data= JSON.parse(data)
     const {email,name}= data
+    const users = await readData()
    const index = users.findIndex((ele)=>{
       return  ele.email == email
     })
@@ -86,7 +97,7 @@ const newUser=(req,res)=>{
       res.write("email already exist");
       return res.end()
     }
-   const lastId = users[users.length-1].id
+   const lastId = users.length ? users[users.length - 1].id : 0;
    const newUser = {
     name,
     email,
@@ -94,23 +105,22 @@ const newUser=(req,res)=>{
    }
 
 users.push(newUser)
-const nUs =JSON.stringify(users)
-console.log(users);
+await writeData(users)
 
-res.write(nUs)
+res.write("user inserted")
 res.end()
   })
 }
-const deleteUser=(req,res,id)=>{
-
-  
-  
+const deleteUser=async(req,res,id)=>{
+      const users = await readData()
     const index =users.findIndex((ele)=>(ele.id==id))
     if(index == -1){
       res.write("user not found")
       return res.end()
     }
   users.splice(index,1)
+  await writeData(users)
+
           res.write("deleted successfully")
         res.end()
 }
@@ -119,9 +129,10 @@ const updateUser=(req,res,id)=>{
   req.on('data',(chunk)=>{
     data += chunk
   }) 
-  req.on('end',()=>{
+  req.on('end',async()=>{
     data=JSON.parse(data)
     const {name,email} = data
+       const users = await readData()
     const index =users.findIndex((ele)=>(ele.id==id))
     if(index == -1){
       res.write("user not found")
@@ -131,14 +142,15 @@ const updateUser=(req,res,id)=>{
 const emailIsExsit= users.findIndex((ele)=>(ele.email==email && ele.id !=id))
       if(emailIsExsit != -1 ){
         res.write("email already exist")
-        res.end
+        return res.end()
       }
 users[index].email=email
 
     }
    
       users[index].name=name || users[index].name
-   
+   await writeData(users)
+
     res.write("update succssefuly")
     res.end()
   })
@@ -148,7 +160,26 @@ server.listen(3000, () => {
   console.log("server running");
 });
 
+//p3
 
+//1  
+//The Event Loop is a mechanism in Node.js that handles asynchronous operations 
+//by moving completed callbacks to the Call Stack when it becomes empty.
 
+//2
+//Libuv is a library that powers Node.js asynchronous features.
+//It manages the Event Loop, Thread Pool, and async I/O operations.
 
+//3
+//Node.js sends async tasks to Libuv or the OS, continues running other code, then executes the callback when the task finishes.
+
+//4
+//Call Stack: Executes functions /Event Queue: Stores completed async callbacks/Event Loop: Moves callbacks to the Call Stack
+
+//5
+//The Thread Pool handles heavy async tasks like file system and crypto operations. Default size is 4 threads (UV_THREADPOOL_SIZE=8)
+
+//6
+//Blocking: Stops execution until task finishes (readFileSync)
+// Non-Blocking: Runs task in background and continues execution (readFile)
 
